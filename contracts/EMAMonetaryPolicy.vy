@@ -13,7 +13,6 @@ from vyper.interfaces import ERC20
 interface IRateCalculator:
     def rate() -> uint256: view
 
-
 interface IController:
     def total_debt() -> uint256: view
 
@@ -27,23 +26,20 @@ event SetParameters:
     r_minf: uint256
     shift: uint256
 
-
 struct Parameters:
     u_inf: uint256
     A: uint256
     r_minf: uint256
     shift: uint256
 
-
-MIN_UTIL: constant(uint256) = 10**16          # 1%
-MAX_UTIL: constant(uint256) = 99 * 10**16     # 99%
+MIN_UTIL: constant(uint256) = 10**16
+MAX_UTIL: constant(uint256) = 99 * 10**16
 MIN_LOW_RATIO: constant(uint256) = 10**16
 MAX_HIGH_RATIO: constant(uint256) = 100 * 10**18
 MAX_RATE_SHIFT: constant(uint256) = 100 * 10**18
-MIN_EMA_RATE: constant(uint256) = 317097920   # 1% APR     
+MIN_EMA_RATE: constant(uint256) = 317097920 # 1% APR    
 
-
-TEXP: public(constant(uint256)) = 200_000     # EMA time exponent
+TEXP: public(constant(uint256)) = 200_000
 
 BORROWED_TOKEN: public(immutable(ERC20))
 FACTORY: public(immutable(IFactory))
@@ -53,7 +49,6 @@ parameters: public(Parameters)
 prev_ma_rate: uint256
 prev_rate: uint256
 last_timestamp: uint256
-
 
 @external
 def __init__(
@@ -146,6 +141,7 @@ def raw_underlying_rate() -> uint256:
     """
     return RATE_CALCULATOR.rate()
 
+
 @external
 @view
 def raw_underlying_apr() -> uint256:
@@ -170,6 +166,7 @@ def ema_rate() -> uint256:
         ema = (self.prev_rate * (10**18 - alpha) + self.prev_ma_rate * alpha) / 10**18
 
     return max(ema, MIN_EMA_RATE)
+
 
 @external
 @view
