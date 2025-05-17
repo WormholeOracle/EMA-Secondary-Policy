@@ -1,4 +1,4 @@
-from brownie import Contract, accounts, EMAMonetaryPolicy, chain, SfrxusdRateCalc
+from brownie import Contract, accounts, EMAMonetaryPolicy, chain, SfrxusdRateCalc, SfrxusdRateCalc_test
 import json
 
 with open("abis/frxusd.json") as f:
@@ -98,7 +98,6 @@ def deploy():
 		chain.sleep(86400)
 		counter += 1
 
-
 	# Increase market utilization
 	borrowed = controller.total_debt()
 	supplied = vault.totalAssets()
@@ -136,5 +135,47 @@ def deploy():
 		print(f'MonPol ma_rate() is {monpol.ma_rate()*86400*365/1e16:.2f}%')
 		rate = vault.borrow_apr() / 1e16
 		print(f"sfrxUSD-long rate in LlamaLend vault {counter} days after apr decrease is {rate:.2f}%")
+		chain.sleep(86400)
+		counter += 1
+
+def set_calc():
+	# Deploy Contracts
+	calc1 = SfrxusdRateCalc.deploy('0xcf62F905562626CfcDD2261162a51fd02Fc9c5b6', {'from': accounts[0]})
+	calc2 = SfrxusdRateCalc_test.deploy('0xcf62F905562626CfcDD2261162a51fd02Fc9c5b6', {'from': accounts[0]})
+	calc1_apr = calc1.rate() *86400*365/1e16
+	calc2_apr = calc2.rate() *86400*365/1e16
+	print(f"Calc1 rate is {calc1.rate()} and apr is {calc1_apr}")
+	print(f"Calc2 rate is {calc2.rate()} and apr is {calc2_apr}")
+
+	monpol = EMAMonetaryPolicy.deploy(
+		"0xeA6876DDE9e3467564acBeE1Ed5bac88783205E0", # FACTORY
+		calc1.address, # RATE_CALCULATOR
+		"0xf939E0A03FB07F59A73314E73794Be0E57ac1b4E", # BORROWED_TOKEN
+		850000000000000000, # TARGET_U
+		200000000000000000, # LOW_RATIO
+		7200000000000000000, # HIGH_RATIO
+		0, # RATE_SHIFT
+		{'from': accounts[0]}
+	)
+
+	# Initial values read
+	rate = vault.borrow_apr() / 1e16
+	print(f"sfrxUSD-long rate in LlamaLend vault with old contract is {rate:.2f}%")
+
+	controller.set_monetary_policy(monpol, {'from': admin})
+	controller.save_rate({'from': accounts[0]})
+
+	rate = vault.borrow_apr() / 1e16
+	print(f"sfrxUSD-long rate in LlamaLend vault with new SecondaryMonPol contract is {rate:.2f}%")
+	print(f'MonPol ma_rate() is {monpol.ma_rate()*86400*365/1e16:.2f}%')
+
+	monpol.set_rate_calculator(calc2, {'from': admin})
+
+	counter = 0
+	while counter < 10:
+		controller.save_rate({'from': accounts[0]})
+		print(f'MonPol ma_rate() is {monpol.ma_rate()*86400*365/1e16:.2f}%')
+		rate = vault.borrow_apr() / 1e16
+		print(f"sfrxUSD-long rate in LlamaLend vault {counter} days after setting new calc is {rate:.2f}%")
 		chain.sleep(86400)
 		counter += 1
