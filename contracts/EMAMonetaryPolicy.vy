@@ -6,6 +6,7 @@
         For use with yieldbearing assets in like-kind lend markets (e.g. sfrxUSD/crvUSD)
 @author Curve.fi
 """
+
 from vyper.interfaces import ERC20
 
 interface IRateCalculator:
@@ -22,9 +23,6 @@ event SetParameters:
     A: uint256
     r_minf: uint256
     shift: uint256
-
-event SetRateCalculator:
-    new_calculator: IRateCalculator
 
 struct Parameters:
     u_inf: uint256
@@ -43,10 +41,9 @@ TEXP: public(constant(uint256)) = 200_000
 
 BORROWED_TOKEN: public(immutable(ERC20))
 FACTORY: public(immutable(IFactory))
+RATE_CALCULATOR: public(immutable(IRateCalculator))
 
-rate_calculator: public(IRateCalculator)
 parameters: public(Parameters)
-
 prev_ma_rate: uint256
 prev_rate: uint256
 last_timestamp: uint256
@@ -79,9 +76,8 @@ def __init__(
     assert rate_shift <= MAX_RATE_SHIFT
 
     FACTORY = factory
+    RATE_CALCULATOR = rate_calculator
     BORROWED_TOKEN = borrowed_token
-
-    self.rate_calculator = rate_calculator
 
     r: uint256 = rate_calculator.rate()
     self.prev_rate = r
@@ -141,7 +137,7 @@ def raw_underlying_rate() -> uint256:
     @notice Read the current per-second rate from the external rate calculator
     @return rate Yield rate per second, scaled by 1e18
     """
-    return self.rate_calculator.rate()
+    return RATE_CALCULATOR.rate()
 
 
 @external
@@ -184,14 +180,29 @@ def ma_rate() -> uint256:
 def ema_rate_w() -> uint256:
     """
     @notice Write variant of EMA function — updates stored EMA and raw rates
-    @dev Should be called periodically to keep EMA current
+    @dev Catches reverts from rate calculator and sets fallback rate
     @return ema_rate Updated EMA rate, floored to minimum
     """
-    r: uint256 = self.ema_rate()
-    self.prev_ma_rate = r
-    self.prev_rate = self.rate_calculator.rate()
+    raw_result: Bytes[32] = empty(Bytes[32])
+    success: bool = False
+
+    success, raw_result = raw_call(
+        RATE_CALCULATOR.address,
+        method_id("rate()"),
+        max_outsize=32,
+        is_static_call=True,
+        revert_on_failure=False
+    )
+
+    r: uint256 = 0
+    if success:
+        r = convert(raw_result, uint256)
+
+    self.prev_rate = r
+    ema: uint256 = self.ema_rate()
+    self.prev_ma_rate = ema
     self.last_timestamp = block.timestamp
-    return r
+    return ema
 
 
 @internal
@@ -278,22 +289,6 @@ def set_parameters(target_utilization: uint256, low_ratio: uint256, high_ratio: 
     p: Parameters = self.get_params(target_utilization, low_ratio, high_ratio, rate_shift)
     self.parameters = p
     log SetParameters(p.u_inf, p.A, p.r_minf, p.shift)
-
-
-@external
-def set_rate_calculator(new_calculator: IRateCalculator):
-    """
-    @notice Admin function to update the rate calculator contract
-    @param new_calculator New address of IRateCalculator
-    """
-    assert msg.sender == FACTORY.admin()
-    self.rate_calculator = new_calculator
-
-    r: uint256 = new_calculator.rate()
-    self.prev_rate = r
-    self.prev_ma_rate = r
-    self.last_timestamp = block.timestamp
-    log SetRateCalculator(new_calculator)
 
 
 @view
