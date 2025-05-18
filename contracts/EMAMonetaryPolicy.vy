@@ -198,11 +198,15 @@ def ema_rate_w() -> uint256:
     if success:
         r = convert(raw_result, uint256)
 
-    self.prev_rate = r
-    ema: uint256 = self.ema_rate()
-    self.prev_ma_rate = ema
-    self.last_timestamp = block.timestamp
-    return ema
+    if self.last_timestamp != block.timestamp:
+        self.prev_rate = r
+        ema: uint256 = self.ema_rate()
+        self.prev_ma_rate = ema
+        self.last_timestamp = block.timestamp
+        return ema
+    else:
+        return self.prev_ma_rate
+
 
 
 @internal
