@@ -1,16 +1,20 @@
 # @version 0.3.10
+
 """
 @title SfrxUSD Rate Calculator
 @notice Provides a per-second yield rate for sfrxUSD, based on current cycle data and stored assets
 @author Curve.fi
 """
 
+
 interface IFraxVault:
     def rewardsCycleData() -> (uint256, uint256, uint256): view
     def storedTotalAssets() -> uint256: view
     def maxDistributionPerSecondPerAsset() -> uint256: view
 
+
 SFRXUSD: public(immutable(IFraxVault))
+
 
 @external
 def __init__(_sfrxusd: address):
