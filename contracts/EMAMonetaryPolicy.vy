@@ -1,4 +1,5 @@
 # @version 0.3.10
+
 """
 @title EMAMonetaryPolicy
 @notice Monetary Policy that follows EMA of external rate calculator contract's yield rate
@@ -9,14 +10,18 @@
 
 from vyper.interfaces import ERC20
 
+
 interface IRateCalculator:
     def rate() -> uint256: view
+
 
 interface IController:
     def total_debt() -> uint256: view
 
+
 interface IFactory:
     def admin() -> address: view
+
 
 event SetParameters:
     u_inf: uint256
@@ -24,18 +29,20 @@ event SetParameters:
     r_minf: uint256
     shift: uint256
 
+
 struct Parameters:
     u_inf: uint256
     A: uint256
     r_minf: uint256
     shift: uint256
 
+
 MIN_UTIL: constant(uint256) = 10**16
 MAX_UTIL: constant(uint256) = 99 * 10**16
 MIN_LOW_RATIO: constant(uint256) = 10**16
 MAX_HIGH_RATIO: constant(uint256) = 100 * 10**18
 MAX_RATE_SHIFT: constant(uint256) = 100 * 10**18
-MIN_EMA_RATE: constant(uint256) = 317097920 # 1% APR    
+MIN_EMA_RATE: constant(uint256) = 317097920  # 1% APR
 
 TEXP: public(constant(uint256)) = 200_000
 
@@ -48,6 +55,7 @@ prev_ma_rate: uint256
 prev_rate: uint256
 last_timestamp: uint256
 
+
 @external
 def __init__(
     factory: IFactory,
@@ -56,7 +64,7 @@ def __init__(
     target_utilization: uint256,
     low_ratio: uint256,
     high_ratio: uint256,
-    rate_shift: uint256
+    rate_shift: uint256,
 ):
     """
     @param factory Address of the market's factory contract (for access control)
@@ -84,7 +92,9 @@ def __init__(
     self.prev_ma_rate = r
     self.last_timestamp = block.timestamp
 
-    p: Parameters = self.get_params(target_utilization, low_ratio, high_ratio, rate_shift)
+    p: Parameters = self.get_params(
+        target_utilization, low_ratio, high_ratio, rate_shift
+    )
     self.parameters = p
     log SetParameters(p.u_inf, p.A, p.r_minf, p.shift)
 
@@ -108,26 +118,52 @@ def exp(power: int256) -> uint256:
     k: int256 = unsafe_div(
         unsafe_add(
             unsafe_div(unsafe_mul(x, 2**96), 54916777467707473351141471128),
-            2**95),
-        2**96)
+            2**95,
+        ),
+        2**96,
+    )
     x = unsafe_sub(x, unsafe_mul(k, 54916777467707473351141471128))
 
     y: int256 = unsafe_add(x, 1346386616545796478920950773328)
-    y = unsafe_add(unsafe_div(unsafe_mul(y, x), 2**96), 57155421227552351082224309758442)
+    y = unsafe_add(
+        unsafe_div(unsafe_mul(y, x), 2**96), 57155421227552351082224309758442
+    )
     p: int256 = unsafe_sub(unsafe_add(y, x), 94201549194550492254356042504812)
-    p = unsafe_add(unsafe_div(unsafe_mul(p, y), 2**96), 28719021644029726153956944680412240)
-    p = unsafe_add(unsafe_mul(p, x), (4385272521454847904659076985693276 * 2**96))
+    p = unsafe_add(
+        unsafe_div(unsafe_mul(p, y), 2**96),
+        28719021644029726153956944680412240,
+    )
+    p = unsafe_add(
+        unsafe_mul(p, x), (4385272521454847904659076985693276 * 2**96)
+    )
 
     q: int256 = x - 2855989394907223263936484059900
-    q = unsafe_add(unsafe_div(unsafe_mul(q, x), 2**96), 50020603652535783019961831881945)
-    q = unsafe_sub(unsafe_div(unsafe_mul(q, x), 2**96), 533845033583426703283633433725380)
-    q = unsafe_add(unsafe_div(unsafe_mul(q, x), 2**96), 3604857256930695427073651918091429)
-    q = unsafe_sub(unsafe_div(unsafe_mul(q, x), 2**96), 14423608567350463180887372962807573)
-    q = unsafe_add(unsafe_div(unsafe_mul(q, x), 2**96), 26449188498355588339934803723976023)
+    q = unsafe_add(
+        unsafe_div(unsafe_mul(q, x), 2**96), 50020603652535783019961831881945
+    )
+    q = unsafe_sub(
+        unsafe_div(unsafe_mul(q, x), 2**96), 533845033583426703283633433725380
+    )
+    q = unsafe_add(
+        unsafe_div(unsafe_mul(q, x), 2**96),
+        3604857256930695427073651918091429,
+    )
+    q = unsafe_sub(
+        unsafe_div(unsafe_mul(q, x), 2**96),
+        14423608567350463180887372962807573,
+    )
+    q = unsafe_add(
+        unsafe_div(unsafe_mul(q, x), 2**96),
+        26449188498355588339934803723976023,
+    )
 
     return shift(
-        unsafe_mul(convert(unsafe_div(p, q), uint256), 3822833074963236453042738258902158003155416615667),
-        unsafe_sub(k, 195))
+        unsafe_mul(
+            convert(unsafe_div(p, q), uint256),
+            3822833074963236453042738258902158003155416615667,
+        ),
+        unsafe_sub(k, 195),
+    )
 
 
 @internal
@@ -160,8 +196,14 @@ def ema_rate() -> uint256:
     last_timestamp: uint256 = self.last_timestamp
     ema: uint256 = self.prev_ma_rate
     if last_timestamp != block.timestamp:
-        alpha: uint256 = self.exp(- convert((block.timestamp - last_timestamp) * (10**18 / TEXP), int256))
-        ema = (self.prev_rate * (10**18 - alpha) + self.prev_ma_rate * alpha) / 10**18
+        alpha: uint256 = self.exp(
+            -convert(
+                (block.timestamp - last_timestamp) * (10**18 / TEXP), int256
+            )
+        )
+        ema = (
+            self.prev_rate * (10**18 - alpha) + self.prev_ma_rate * alpha
+        ) / 10**18
 
     return max(ema, MIN_EMA_RATE)
 
@@ -191,7 +233,7 @@ def ema_rate_w() -> uint256:
         method_id("rate()"),
         max_outsize=32,
         is_static_call=True,
-        revert_on_failure=False
+        revert_on_failure=False,
     )
 
     r: uint256 = 0
@@ -208,9 +250,10 @@ def ema_rate_w() -> uint256:
         return self.prev_ma_rate
 
 
-
 @internal
-def get_params(u_0: uint256, alpha: uint256, beta: uint256, rate_shift: uint256) -> Parameters:
+def get_params(
+    u_0: uint256, alpha: uint256, beta: uint256, rate_shift: uint256
+) -> Parameters:
     """
     @notice Computes the internal rate curve parameters
     @param u_0 Target utilization
@@ -220,7 +263,14 @@ def get_params(u_0: uint256, alpha: uint256, beta: uint256, rate_shift: uint256)
     @return p Struct containing computed parameters
     """
     p: Parameters = empty(Parameters)
-    p.u_inf = (beta - 10**18) * u_0 / (((beta - 10**18) * u_0 - (10**18 - u_0) * (10**18 - alpha)) / 10**18)
+    p.u_inf = (
+        (beta - 10**18)
+        * u_0
+        / (
+            ((beta - 10**18) * u_0 - (10**18 - u_0) * (10**18 - alpha))
+            / 10**18
+        )
+    )
     p.A = (10**18 - alpha) * p.u_inf / 10**18 * (p.u_inf - u_0) / u_0
     p.r_minf = alpha - p.A * 10**18 / p.u_inf
     p.shift = rate_shift
@@ -229,7 +279,9 @@ def get_params(u_0: uint256, alpha: uint256, beta: uint256, rate_shift: uint256)
 
 @internal
 @view
-def calculate_rate(_for: address, d_reserves: int256, d_debt: int256, r0: uint256) -> uint256:
+def calculate_rate(
+    _for: address, d_reserves: int256, d_debt: int256, r0: uint256
+) -> uint256:
     """
     @notice Computes dynamic interest rate based on utilization
     @param _for Address of market controller
@@ -240,7 +292,11 @@ def calculate_rate(_for: address, d_reserves: int256, d_debt: int256, r0: uint25
     """
     p: Parameters = self.parameters
     total_debt: int256 = convert(IController(_for).total_debt(), int256)
-    total_reserves: int256 = convert(BORROWED_TOKEN.balanceOf(_for), int256) + total_debt + d_reserves
+    total_reserves: int256 = (
+        convert(BORROWED_TOKEN.balanceOf(_for), int256)
+        + total_debt
+        + d_reserves
+    )
     total_debt += d_debt
     assert total_debt >= 0, "Negative debt"
     assert total_reserves >= total_debt, "Reserves too small"
@@ -274,7 +330,12 @@ def rate_write(_for: address = msg.sender) -> uint256:
 
 
 @external
-def set_parameters(target_utilization: uint256, low_ratio: uint256, high_ratio: uint256, rate_shift: uint256):
+def set_parameters(
+    target_utilization: uint256,
+    low_ratio: uint256,
+    high_ratio: uint256,
+    rate_shift: uint256,
+):
     """
     @notice Admin function to change curve parameters
     @param target_utilization Target utilization where rate = base
@@ -290,7 +351,9 @@ def set_parameters(target_utilization: uint256, low_ratio: uint256, high_ratio: 
     assert low_ratio < high_ratio
     assert rate_shift <= MAX_RATE_SHIFT
 
-    p: Parameters = self.get_params(target_utilization, low_ratio, high_ratio, rate_shift)
+    p: Parameters = self.get_params(
+        target_utilization, low_ratio, high_ratio, rate_shift
+    )
     self.parameters = p
     log SetParameters(p.u_inf, p.A, p.r_minf, p.shift)
 
