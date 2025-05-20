@@ -21,13 +21,13 @@ interface IFactory:
 event SetParameters:
     u_inf: uint256
     A: uint256
-    r_minf: uint256
+    r_minf: int256
     shift: uint256
 
 struct Parameters:
     u_inf: uint256
     A: uint256
-    r_minf: uint256
+    r_minf: int256
     shift: uint256
 
 MIN_UTIL: constant(uint256) = 10**16
@@ -44,6 +44,7 @@ FACTORY: public(immutable(IFactory))
 RATE_CALCULATOR: public(immutable(IRateCalculator))
 
 parameters: public(Parameters)
+
 prev_ma_rate: uint256
 prev_rate: uint256
 last_timestamp: uint256
@@ -222,7 +223,7 @@ def get_params(u_0: uint256, alpha: uint256, beta: uint256, rate_shift: uint256)
     p: Parameters = empty(Parameters)
     p.u_inf = (beta - 10**18) * u_0 / (((beta - 10**18) * u_0 - (10**18 - u_0) * (10**18 - alpha)) / 10**18)
     p.A = (10**18 - alpha) * p.u_inf / 10**18 * (p.u_inf - u_0) / u_0
-    p.r_minf = alpha - p.A * 10**18 / p.u_inf
+    p.r_minf = convert(alpha, int256) - convert(p.A * 10**18 / p.u_inf, int256)
     p.shift = rate_shift
     return p
 
@@ -249,7 +250,13 @@ def calculate_rate(_for: address, d_reserves: int256, d_debt: int256, r0: uint25
     if total_reserves > 0:
         u = convert(total_debt * 10**18 / total_reserves, uint256)
 
-    return r0 * p.r_minf / 10**18 + p.A * r0 / (p.u_inf - u) + p.shift
+    a: int256 = convert(r0, int256) * p.r_minf / 10**18
+    b: int256 = convert(p.A * r0 / (p.u_inf - u), int256)
+    rate_shift: int256 = convert(p.shift, int256)
+
+    rate: int256 = a + b + rate_shift
+    assert rate >= 0, "Negative rate"
+    return convert(rate, uint256)
 
 
 @view
@@ -274,7 +281,12 @@ def rate_write(_for: address = msg.sender) -> uint256:
 
 
 @external
-def set_parameters(target_utilization: uint256, low_ratio: uint256, high_ratio: uint256, rate_shift: uint256):
+def set_parameters(
+    target_utilization: uint256, 
+    low_ratio: uint256, 
+    high_ratio: uint256, 
+    rate_shift: uint256
+):
     """
     @notice Admin function to change curve parameters
     @param target_utilization Target utilization where rate = base
