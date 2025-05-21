@@ -1,4 +1,4 @@
-# @version 0.3.10
+# @version 0.4.1
 
 """
 @title EMAMonetaryPolicy
@@ -8,7 +8,7 @@
 @author Curve.fi
 """
 
-from vyper.interfaces import ERC20
+from ethereum.ercs import IERC20
 
 
 interface IRateCalculator:
@@ -46,7 +46,7 @@ MIN_EMA_RATE: constant(uint256) = 317097920  # 1% APR
 
 TEXP: public(constant(uint256)) = 200_000
 
-BORROWED_TOKEN: public(immutable(ERC20))
+BORROWED_TOKEN: public(immutable(IERC20))
 FACTORY: public(immutable(IFactory))
 RATE_CALCULATOR: public(immutable(IRateCalculator))
 
@@ -56,11 +56,11 @@ prev_rate: uint256
 last_timestamp: uint256
 
 
-@external
+@deploy
 def __init__(
     factory: IFactory,
     rate_calculator: IRateCalculator,
-    borrowed_token: ERC20,
+    borrowed_token: IERC20,
     target_utilization: uint256,
     low_ratio: uint256,
     high_ratio: uint256,
@@ -87,7 +87,7 @@ def __init__(
     RATE_CALCULATOR = rate_calculator
     BORROWED_TOKEN = borrowed_token
 
-    r: uint256 = rate_calculator.rate()
+    r: uint256 = staticcall rate_calculator.rate()
     self.prev_rate = r
     self.prev_ma_rate = r
     self.last_timestamp = block.timestamp
@@ -157,12 +157,10 @@ def exp(power: int256) -> uint256:
         26449188498355588339934803723976023,
     )
 
-    return shift(
-        unsafe_mul(
-            convert(unsafe_div(p, q), uint256),
-            3822833074963236453042738258902158003155416615667,
-        ),
-        unsafe_sub(k, 195),
+    return convert(
+        unsafe_div(p, q), uint256
+    ) * 3822833074963236453042738258902158003155416615667 >> convert(
+        unsafe_sub(195, k), uint256
     )
 
 
@@ -173,7 +171,7 @@ def raw_underlying_rate() -> uint256:
     @notice Read the current per-second rate from the external rate calculator
     @return rate Yield rate per second, scaled by 1e18
     """
-    return RATE_CALCULATOR.rate()
+    return staticcall RATE_CALCULATOR.rate()
 
 
 @external
@@ -198,12 +196,12 @@ def ema_rate() -> uint256:
     if last_timestamp != block.timestamp:
         alpha: uint256 = self.exp(
             -convert(
-                (block.timestamp - last_timestamp) * (10**18 / TEXP), int256
+                (block.timestamp - last_timestamp) * (10**18 // TEXP), int256
             )
         )
         ema = (
             self.prev_rate * (10**18 - alpha) + self.prev_ma_rate * alpha
-        ) / 10**18
+        ) // 10**18
 
     return max(ema, MIN_EMA_RATE)
 
@@ -266,13 +264,13 @@ def get_params(
     p.u_inf = (
         (beta - 10**18)
         * u_0
-        / (
+        // (
             ((beta - 10**18) * u_0 - (10**18 - u_0) * (10**18 - alpha))
-            / 10**18
+            // 10**18
         )
     )
-    p.A = (10**18 - alpha) * p.u_inf / 10**18 * (p.u_inf - u_0) / u_0
-    p.r_minf = alpha - p.A * 10**18 / p.u_inf
+    p.A = (10**18 - alpha) * p.u_inf // 10**18 * (p.u_inf - u_0) // u_0
+    p.r_minf = alpha - p.A * 10**18 // p.u_inf
     p.shift = rate_shift
     return p
 
@@ -291,9 +289,9 @@ def calculate_rate(
     @return rate Final rate based on utilization
     """
     p: Parameters = self.parameters
-    total_debt: int256 = convert(IController(_for).total_debt(), int256)
+    total_debt: int256 = convert(staticcall IController(_for).total_debt(), int256)
     total_reserves: int256 = (
-        convert(BORROWED_TOKEN.balanceOf(_for), int256)
+        convert(staticcall BORROWED_TOKEN.balanceOf(_for), int256)
         + total_debt
         + d_reserves
     )
@@ -303,9 +301,9 @@ def calculate_rate(
 
     u: uint256 = 0
     if total_reserves > 0:
-        u = convert(total_debt * 10**18 / total_reserves, uint256)
+        u = convert(total_debt * 10**18 // total_reserves, uint256)
 
-    return r0 * p.r_minf / 10**18 + p.A * r0 / (p.u_inf - u) + p.shift
+    return r0 * p.r_minf // 10**18 + p.A * r0 // (p.u_inf - u) + p.shift
 
 
 @view
@@ -343,7 +341,7 @@ def set_parameters(
     @param high_ratio Ratio of rate/base at 100% utilization
     @param rate_shift Constant shift on the curve
     """
-    assert msg.sender == FACTORY.admin()
+    assert msg.sender == staticcall FACTORY.admin()
     assert target_utilization >= MIN_UTIL
     assert target_utilization <= MAX_UTIL
     assert low_ratio >= MIN_LOW_RATIO
