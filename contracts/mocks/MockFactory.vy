@@ -7,6 +7,7 @@
 
 admin: public(address)
 
+
 @external
 def __init__(_admin: address):
-    self.admin = _admin 
+    self.admin = _admin

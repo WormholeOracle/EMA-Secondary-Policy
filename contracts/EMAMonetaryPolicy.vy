@@ -263,10 +263,11 @@ def get_params(
     p: Parameters = empty(Parameters)
     p.u_inf = (
         (beta - 10**18)
-        * u_0
-        // (
-            ((beta - 10**18) * u_0 - (10**18 - u_0) * (10**18 - alpha))
-            // 10**18
+        * u_0 // (
+            (
+                (beta - 10**18) * u_0 - (10**18 - u_0) * (10**18 - alpha)
+            ) // 10
+            ** 18
         )
     )
     p.A = (10**18 - alpha) * p.u_inf // 10**18 * (p.u_inf - u_0) // u_0
@@ -289,7 +290,9 @@ def calculate_rate(
     @return rate Final rate based on utilization
     """
     p: Parameters = self.parameters
-    total_debt: int256 = convert(staticcall IController(_for).total_debt(), int256)
+    total_debt: int256 = convert(
+        staticcall IController(_for).total_debt(), int256
+    )
     total_reserves: int256 = (
         convert(staticcall BORROWED_TOKEN.balanceOf(_for), int256)
         + total_debt

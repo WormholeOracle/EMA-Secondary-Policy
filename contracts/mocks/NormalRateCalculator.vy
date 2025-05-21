@@ -7,11 +7,13 @@
 
 _rate: public(uint256)
 
+
 @external
 def __init__(rate: uint256):
     self._rate = rate
 
+
 @external
 @view
 def rate() -> uint256:
-    return self._rate 
+    return self._rate
