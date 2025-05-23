@@ -9,6 +9,7 @@
 
 from vyper.interfaces import ERC20
 
+
 interface IRateCalculator:
     def rate() -> uint256: view
 
@@ -18,17 +19,20 @@ interface IController:
 interface IFactory:
     def admin() -> address: view
 
+
 event SetParameters:
     u_inf: uint256
     A: uint256
     r_minf: int256
     shift: uint256
 
+
 struct Parameters:
     u_inf: uint256
     A: uint256
     r_minf: int256
     shift: uint256
+
 
 MIN_UTIL: constant(uint256) = 10**16
 MAX_UTIL: constant(uint256) = 99 * 10**16
@@ -37,17 +41,17 @@ MAX_HIGH_RATIO: constant(uint256) = 100 * 10**18
 MAX_RATE_SHIFT: constant(uint256) = 100 * 10**18
 MIN_EMA_RATE: constant(uint256) = 317097920 # 1% APR    
 
-TEXP: public(constant(uint256)) = 200_000
+TEXP: public(constant(uint256)) = 40000
 
 BORROWED_TOKEN: public(immutable(ERC20))
 FACTORY: public(immutable(IFactory))
 RATE_CALCULATOR: public(immutable(IRateCalculator))
 
 parameters: public(Parameters)
-
 prev_ma_rate: uint256
 prev_rate: uint256
 last_timestamp: uint256
+
 
 @external
 def __init__(
@@ -69,12 +73,12 @@ def __init__(
     @param rate_shift Flat shift to apply to the resulting rate curve (can be 0)
     @notice Initializes the monetary policy with given parameters and sets initial EMA rate
     """
-    assert target_utilization >= MIN_UTIL
-    assert target_utilization <= MAX_UTIL
-    assert low_ratio >= MIN_LOW_RATIO
-    assert high_ratio <= MAX_HIGH_RATIO
-    assert low_ratio < high_ratio
-    assert rate_shift <= MAX_RATE_SHIFT
+    assert target_utilization >= MIN_UTIL, "target_utilization too low"
+    assert target_utilization <= MAX_UTIL, "target_utilization too high"
+    assert low_ratio >= MIN_LOW_RATIO, "low_ratio too low"
+    assert high_ratio <= MAX_HIGH_RATIO, "high_ratio too high"
+    assert low_ratio < high_ratio, "low_ratio must be less than high_ratio"
+    assert rate_shift <= MAX_RATE_SHIFT, "rate_shift too high"
 
     FACTORY = factory
     RATE_CALCULATOR = rate_calculator
@@ -209,8 +213,8 @@ def ema_rate_w() -> uint256:
         return self.prev_ma_rate
 
 
-
 @internal
+@pure
 def get_params(u_0: uint256, alpha: uint256, beta: uint256, rate_shift: uint256) -> Parameters:
     """
     @notice Computes the internal rate curve parameters
@@ -294,13 +298,13 @@ def set_parameters(
     @param high_ratio Ratio of rate/base at 100% utilization
     @param rate_shift Constant shift on the curve
     """
-    assert msg.sender == FACTORY.admin()
-    assert target_utilization >= MIN_UTIL
-    assert target_utilization <= MAX_UTIL
-    assert low_ratio >= MIN_LOW_RATIO
-    assert high_ratio <= MAX_HIGH_RATIO
-    assert low_ratio < high_ratio
-    assert rate_shift <= MAX_RATE_SHIFT
+    assert msg.sender == FACTORY.admin(), "Not factory admin"
+    assert target_utilization >= MIN_UTIL, "target_utilization too low"
+    assert target_utilization <= MAX_UTIL, "target_utilization too high"
+    assert low_ratio >= MIN_LOW_RATIO, "low_ratio too low"
+    assert high_ratio <= MAX_HIGH_RATIO, "high_ratio too high"
+    assert low_ratio < high_ratio, "low_ratio must be less than high_ratio"
+    assert rate_shift <= MAX_RATE_SHIFT, "rate_shift too high"
 
     p: Parameters = self.get_params(target_utilization, low_ratio, high_ratio, rate_shift)
     self.parameters = p
