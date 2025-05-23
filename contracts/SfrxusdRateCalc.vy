@@ -10,7 +10,9 @@ interface IFraxVault:
     def storedTotalAssets() -> uint256: view
     def maxDistributionPerSecondPerAsset() -> uint256: view
 
+
 SFRXUSD: public(immutable(IFraxVault))
+
 
 @external
 def __init__(_sfrxusd: address):
@@ -39,7 +41,7 @@ def rate() -> uint256:
 
     assets: uint256 = SFRXUSD.storedTotalAssets()
     if assets == 0:
-        assets = 1  # Prevent divide-by-zero
+        assets = 1
 
     max_distro: uint256 = SFRXUSD.maxDistributionPerSecondPerAsset()
     duration: uint256 = cycle_end - last_sync
